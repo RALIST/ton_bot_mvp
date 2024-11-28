@@ -1,7 +1,6 @@
 require 'nokogiri'
 require 'httparty'
 require 'uri'
-require 'pg'
 require_relative 'jobs/embedding_processor_job'
 
 module TonBot
@@ -11,7 +10,6 @@ module TonBot
 
     def initialize
       @processed_urls = Set.new
-      @conn = setup_database
     end
 
     def scrape_all
@@ -26,18 +24,11 @@ module TonBot
     end
 
     def process_unprocessed_documents
-      sql = <<-SQL
-        SELECT id FROM raw_documents 
-        WHERE processed = false 
-        ORDER BY created_at ASC
-      SQL
-
-      result = @conn.exec(sql)
-      total = result.ntuples
+      total = RawDocument.unprocessed.count
       puts "Found #{total} unprocessed documents. Enqueueing for processing..."
 
-      result.each_with_index do |row, index|
-        EmbeddingProcessorJob.perform_async(row['id'])
+      RawDocument.unprocessed.find_each.with_index do |doc, index|
+        EmbeddingProcessorJob.perform_async(doc.id)
         puts "Enqueued document #{index + 1} of #{total}" if (index + 1) % 10 == 0
       end
 
@@ -45,34 +36,6 @@ module TonBot
     end
 
     private
-
-    def setup_database
-      conn = PG.connect(
-        host: ENV['DB_HOST'],
-        port: ENV['DB_PORT'],
-        dbname: ENV['DB_NAME'],
-        user: ENV['DB_USER'],
-        password: ENV['DB_PASSWORD']
-      )
-
-      # Create raw_documents table if not exists
-      conn.exec(<<-SQL)
-        CREATE TABLE IF NOT EXISTS raw_documents (
-          id SERIAL PRIMARY KEY,
-          url TEXT UNIQUE,
-          title TEXT,
-          content TEXT,
-          html_content TEXT,
-          section TEXT,
-          metadata JSONB,
-          processed BOOLEAN DEFAULT FALSE,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      SQL
-
-      conn
-    end
 
     def scrape_page(url)
       return if @processed_urls.include?(url) || !valid_url?(url)
@@ -116,34 +79,14 @@ module TonBot
         last_updated: extract_last_updated(doc)
       }
 
-      sql = <<-SQL
-        INSERT INTO raw_documents (url, title, content, html_content, section, metadata)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (url) 
-        DO UPDATE SET 
-          title = EXCLUDED.title,
-          content = EXCLUDED.content,
-          html_content = EXCLUDED.html_content,
-          section = EXCLUDED.section,
-          metadata = EXCLUDED.metadata,
-          processed = FALSE,
-          updated_at = CURRENT_TIMESTAMP
-        RETURNING id
-      SQL
-
-      result = @conn.exec_params(
-        sql,
-        [
-          url,
-          title,
-          clean_content(main_content),
-          main_content.to_html,
-          section,
-          metadata.to_json
-        ]
+      RawDocument.store_from_scrape(
+        url: url,
+        title: title,
+        content: clean_content(main_content),
+        html_content: main_content.to_html,
+        section: section,
+        metadata: metadata
       )
-      
-      result[0]['id']
     rescue StandardError => e
       puts "Error storing document #{url}: #{e.message}"
       nil

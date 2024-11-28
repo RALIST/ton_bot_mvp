@@ -11,14 +11,6 @@ module TonBot
       @embeddings = Embeddings.new
       @redis = Redis.new(url: ENV['REDIS_URL'])
       @cache_ttl = 3600 # 1 hour
-      @conn = PG.connect(
-        host: ENV['DB_HOST'],
-        port: ENV['DB_PORT'],
-        dbname: ENV['DB_NAME'],
-        user: ENV['DB_USER'],
-        password: ENV['DB_PASSWORD']
-      )
-
       puts 'Bot initialized successfully'
     end
 
@@ -87,9 +79,9 @@ module TonBot
       similar_chunks = @embeddings.find_similar(question_embedding, 5)
       
       # If we don't have enough processed embeddings, supplement with raw documents
-      if similar_chunks.ntuples < 5
-        puts "Found only #{similar_chunks.ntuples} processed embeddings, checking raw documents..."
-        raw_docs = find_relevant_raw_documents(5 - similar_chunks.ntuples)
+      if similar_chunks.length < 5
+        puts "Found only #{similar_chunks.length} processed embeddings, checking raw documents..."
+        raw_docs = find_relevant_raw_documents(5 - similar_chunks.length)
         
         # Combine processed and raw results
         context = format_similar_chunks(similar_chunks)
@@ -102,28 +94,15 @@ module TonBot
 
     def find_relevant_raw_documents(limit)
       # Simple keyword-based fallback when embeddings aren't ready
-      sql = <<-SQL
-        SELECT 
-          content,
-          url,
-          section,
-          metadata,
-          created_at
-        FROM raw_documents
-        WHERE processed = false
-        ORDER BY created_at DESC
-        LIMIT $1
-      SQL
-
-      @conn.exec_params(sql, [limit])
+      RawDocument.unprocessed.order(created_at: :desc).limit(limit)
     end
 
     def format_similar_chunks(chunks)
       chunks.map do |chunk|
         {
-          content: chunk['content'],
-          url: chunk['url'],
-          section: chunk['section']
+          content: chunk.content,
+          url: chunk.url,
+          section: chunk.section
         }
       end
     end
@@ -131,9 +110,9 @@ module TonBot
     def format_raw_documents(docs)
       docs.map do |doc|
         {
-          content: doc['content'],
-          url: doc['url'],
-          section: doc['section']
+          content: doc.content,
+          url: doc.url,
+          section: doc.section
         }
       end
     end

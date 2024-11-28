@@ -4,16 +4,19 @@ class Embedding < ActiveRecord::Base
   validates :content, presence: true
   validates :embedding, presence: true
   
-  def self.ransackable_attributes(auth_object = nil)
-    %w[id content section url created_at]
+  def self.store_chunk(embedding_vector:, content:, document:)
+    create!(
+      embedding: embedding_vector,
+      content: content,
+      document_id: document.id,
+      section: document.section,
+      url: document.url,
+      metadata: document.metadata
+    )
   end
   
-  def self.ransackable_associations(auth_object = nil)
-    ['raw_document']
-  end
-  
-  def similarity_search(query_embedding, limit = 5)
-    self.class.find_by_sql([<<-SQL, query_embedding, limit])
+  def self.similarity_search(query_embedding, limit = 5)
+    find_by_sql([<<-SQL, query_embedding, query_embedding, limit])
       SELECT 
         embeddings.*,
         1 - (embedding <=> ?) as similarity
@@ -21,5 +24,13 @@ class Embedding < ActiveRecord::Base
       ORDER BY embedding <=> ?
       LIMIT ?
     SQL
+  end
+  
+  def self.ransackable_attributes(auth_object = nil)
+    %w[id content section url created_at]
+  end
+  
+  def self.ransackable_associations(auth_object = nil)
+    ['raw_document']
   end
 end
