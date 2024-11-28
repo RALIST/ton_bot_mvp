@@ -1,3 +1,6 @@
+require_relative 'config/environment'
+require 'sinatra/activerecord/rake'
+
 namespace :db do
   desc 'Clear embeddings and reset documents'
   task :clear_embeddings do
@@ -19,4 +22,13 @@ namespace :db do
     puts "Total Embeddings: #{total_embeddings}"
     puts "\nProgress: #{processed_docs}/#{total_docs} documents processed (#{(processed_docs.to_f / total_docs * 100).round(2)}%)"
   end
+
+  desc 'Scrape all documentation'
+  task :scrape_all do
+    scraper = TonBot::Scrapers::ScraperManager.new
+    scraper.scrape_all
+  end
 end
+
+# Add default rake task
+task default: 'db:stats'

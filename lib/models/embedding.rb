@@ -37,7 +37,7 @@ class Embedding < ActiveRecord::Base
     find_by_sql([base_query, *params])
   end
 
-  def self.hybrid_search(query_text:, query_embedding:, limit: 5)
+  def self.hybrid_search(query_text:, query_embedding:, limit: 5, source: nil)
     # Combine vector similarity with text similarity using ts_rank
     query = <<-SQL
       WITH vector_scores AS (
@@ -45,6 +45,7 @@ class Embedding < ActiveRecord::Base
           id,
           1 - (embedding <=> ?) as similarity
         FROM embeddings
+        #{source ? "WHERE metadata->>'source' = ?" : ""}
       ),
       text_scores AS (
         SELECT 
@@ -54,6 +55,7 @@ class Embedding < ActiveRecord::Base
             plainto_tsquery('english', ?)
           ) as text_rank
         FROM embeddings
+        #{source ? "WHERE metadata->>'source' = ?" : ""}
       )
       SELECT 
         e.*,
@@ -65,7 +67,11 @@ class Embedding < ActiveRecord::Base
       LIMIT ?
     SQL
 
-    find_by_sql([query, query_embedding, query_text, limit])
+    params = source ? 
+      [query_embedding, source, query_text, source, limit] :
+      [query_embedding, query_text, limit]
+
+    find_by_sql([query, *params])
   end
 
   def self.contextual_search(query_embedding:, context_filter: {}, limit: 5)
@@ -86,6 +92,11 @@ class Embedding < ActiveRecord::Base
     if context_filter[:subsection].present?
       conditions << "metadata->>'subsection' = ?"
       params << context_filter[:subsection]
+    end
+
+    if context_filter[:source].present?
+      conditions << "metadata->>'source' = ?"
+      params << context_filter[:source]
     end
 
     # Construct the query

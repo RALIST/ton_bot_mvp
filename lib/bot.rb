@@ -2,6 +2,7 @@ require 'anthropic'
 require 'openai'
 require 'redis'
 require 'json'
+require_relative 'scrapers/scraper_manager'
 
 module TonBot
   class Bot
@@ -113,20 +114,39 @@ module TonBot
 
     def determine_context_filter(question)
       filter = {}
+      question_lower = question.downcase
       
-      # Check if question is likely about code
-      if question.downcase.match?(/\b(code|function|method|api|implementation|example|how to|usage)\b/)
+      # Check if question is about code
+      if question_lower.match?(/\b(code|function|method|api|implementation|example|how to|usage)\b/)
         filter[:has_code] = true
       end
-      
-      # Detect specific sections from question
-      case question.downcase
-      when /\b(smart contract|contract|solidity|func|tvm)\b/
-        filter[:section] = 'develop'
-      when /\b(validator|validation|stake|mining)\b/
-        filter[:section] = 'participate'
-      when /\b(concept|architecture|design|blockchain|how\s+\w+\s+works)\b/
-        filter[:section] = 'learn'
+
+      # Detect TACT-specific queries
+      if question_lower.match?(/\b(tact|tact-lang|tact language)\b/)
+        filter[:source] = 'tact_docs'
+        
+        # Determine specific TACT section
+        if question_lower.match?(/\b(overview|introduction|what is|basics)\b/)
+          filter[:section] = 'tact/overview'
+        elsif question_lower.match?(/\b(syntax|grammar|type|struct|contract|message|init|receive)\b/)
+          filter[:section] = 'tact/language'
+        elsif question_lower.match?(/\b(cookbook|recipe|pattern|practice)\b/)
+          filter[:section] = 'tact/cookbook'
+        elsif question_lower.match?(/\b(example|sample|demo)\b/)
+          filter[:section] = 'tact/examples'
+        end
+      else
+        # TON documentation sections
+        if question_lower.match?(/\b(smart contract|contract|solidity|func|tvm)\b/)
+          filter[:section] = 'develop'
+          filter[:source] = 'ton_docs'
+        elsif question_lower.match?(/\b(validator|validation|stake|mining)\b/)
+          filter[:section] = 'participate'
+          filter[:source] = 'ton_docs'
+        elsif question_lower.match?(/\b(concept|architecture|design|blockchain|how\s+\w+\s+works)\b/)
+          filter[:section] = 'learn'
+          filter[:source] = 'ton_docs'
+        end
       end
       
       filter
@@ -142,6 +162,7 @@ module TonBot
           content: chunk.content,
           url: chunk.url,
           section: chunk.section,
+          source: chunk.metadata['source'],
           similarity: chunk.try(:similarity) || chunk.try(:combined_score)
         }
       end
@@ -152,7 +173,8 @@ module TonBot
         {
           content: doc.content,
           url: doc.url,
-          section: doc.section
+          section: doc.section,
+          source: doc.metadata['source']
         }
       end
     end
@@ -162,9 +184,10 @@ module TonBot
       sorted_context = context.sort_by { |c| -c[:similarity].to_f }
       
       context_text = sorted_context.map.with_index do |c, i|
-        # Include relevance score in debug mode
+        # Include source and relevance score in debug mode
+        source_info = c[:source] ? " [#{c[:source]}]" : ""
         score_info = c[:similarity] ? " (relevance: #{(c[:similarity] * 100).round(2)}%)" : ''
-        "Source #{i + 1} (#{c[:url]})#{score_info}:\n#{c[:content]}\n\n"
+        "Source #{i + 1} (#{c[:url]})#{source_info}#{score_info}:\n#{c[:content]}\n\n"
       end.join("\n")
 
       begin
@@ -172,8 +195,9 @@ module TonBot
           messages: [{
             role: 'user',
             content: <<~PROMPT
-              You are a TON blockchain expert assistant. Use the following context to answer the question.
-              If you can't find the answer in the context, say so and provide a general response about TON blockchain. 
+              You are a TON blockchain expert assistant with deep knowledge of both TON and the TACT programming language. 
+              Use the following context to answer the question.
+              If you can't find the answer in the context, say so and provide a general response about TON blockchain or TACT. 
               Avoid showing to user that you are using some context for answer, try always to answer in human form.
               If the context includes code examples and the question is about implementation, include relevant code snippets in your answer.
 

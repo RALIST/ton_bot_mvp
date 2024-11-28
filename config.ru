@@ -1,20 +1,4 @@
-require 'sinatra'
-require 'json'
-require 'dotenv'
-require 'anthropic'
-require 'openai'
-require 'sidekiq/web'
-require_relative 'lib/scraper'
-require_relative 'lib/admin_app'
-
-Dotenv.load if File.exist?('.env')
-
-# Load initializers
-require_relative 'config/initializers/anthropic'
-require_relative 'config/initializers/openai'
-
-require_relative 'lib/embeddings'
-require_relative 'lib/bot'
+require_relative 'config/environment'
 
 class TonBotAPI < Sinatra::Base
   configure do
@@ -50,7 +34,7 @@ class TonBotAPI < Sinatra::Base
   # Refresh content (admin only)
   post '/refresh' do
     halt 401, { error: 'Unauthorized' }.to_json unless authorized?
-    scraper = TonBot::Scraper.new
+    scraper = TonBot::Scrapers::ScraperManager.new
     documents = scraper.scrape_all
 
     {
@@ -72,16 +56,25 @@ class TonBotAPI < Sinatra::Base
   end
 end
 
-# Protect Sidekiq web interface with admin authentication
-Sidekiq::Web.use(Rack::Auth::Basic) do |username, password|
-  username == 'admin' && password == ENV['ADMIN_TOKEN']
-end
-
 # Create a new Rack builder instance
 app = Rack::Builder.new do
-  # Mount the main API at root
-  map '/' do
-    run TonBotAPI
+  # Enable CORS
+  use Rack::Cors do
+    allow do
+      origins '*'
+      resource '*', headers: :any, methods: [:get, :post, :options]
+    end
+  end
+
+  # Mount Sidekiq web interface at /sidekiq with authentication
+  map '/sidekiq' do
+    use Rack::Auth::Basic, "Protected Area" do |username, password|
+      # Secure the Sidekiq dashboard with basic auth
+      username == ENV.fetch('ADMIN_USERNAME', 'admin') && 
+      password == ENV.fetch('ADMIN_TOKEN', 'admin')
+    end
+
+    run Sidekiq::Web
   end
 
   # Mount the admin interface at /admin
@@ -89,9 +82,9 @@ app = Rack::Builder.new do
     run TonBot::AdminApp
   end
 
-  # Mount Sidekiq web interface at /sidekiq
-  map '/sidekiq' do
-    run Sidekiq::Web
+  # Mount the main API at root
+  map '/' do
+    run TonBotAPI
   end
 end
 

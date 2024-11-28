@@ -1,5 +1,6 @@
 require 'sidekiq'
 require_relative '../embeddings'
+require_relative '../models/raw_document'
 
 module TonBot
   class EmbeddingProcessorJob

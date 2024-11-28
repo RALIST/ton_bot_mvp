@@ -1,17 +1,13 @@
 require 'sinatra/base'
-require 'sinatra/activerecord'
 require 'sinatra/json'
 require 'sinatra/reloader'
 require 'padrino-helpers'
 require 'will_paginate'
 require 'will_paginate/active_record'
 require 'securerandom'
-require_relative 'models/raw_document'
-require_relative 'models/embedding'
 
 module TonBot
   class AdminApp < Sinatra::Base
-    register Sinatra::ActiveRecordExtension
     register Padrino::Helpers
     
     configure do
@@ -22,16 +18,6 @@ module TonBot
     configure :development do
       register Sinatra::Reloader
     end
-
-    # Database configuration
-    set :database, {
-      adapter: 'postgresql',
-      host: ENV['DB_HOST'],
-      port: ENV['DB_PORT'],
-      database: ENV['DB_NAME'],
-      username: ENV['DB_USER'],
-      password: ENV['DB_PASSWORD']
-    }
 
     # Configure WillPaginate
     set :per_page, 20
