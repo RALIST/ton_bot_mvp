@@ -1,0 +1,102 @@
+<article>
+  <header>
+    <h1>Documents</h1>
+    <div>
+      <form action="/admin/documents" method="get" class="grid">
+        <div>
+          <input type="search" name="q" placeholder="Search by title or URL" value="<%= params[:q] %>">
+        </div>
+        <div>
+          <select name="status">
+            <option value="">All Status</option>
+            <option value="processed" <%= 'selected' if params[:status] == 'processed' %>>Processed</option>
+            <option value="pending" <%= 'selected' if params[:status] == 'pending' %>>Pending</option>
+          </select>
+        </div>
+        <div>
+          <button type="submit">Search</button>
+        </div>
+      </form>
+    </div>
+  </header>
+
+  <table role="grid">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>URL</th>
+        <th>Section</th>
+        <th>Status</th>
+        <th>Embeddings</th>
+        <th>Last Updated</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @documents.each do |doc| %>
+        <tr>
+          <td><%= doc.title %></td>
+          <td><%= doc.url %></td>
+          <td><%= doc.section %></td>
+          <td><%= doc.processed ? 'Processed' : 'Pending' %></td>
+          <td><%= doc.embedding_count %></td>
+          <td><%= doc.updated_at.strftime('%Y-%m-%d %H:%M:%S') %></td>
+          <td>
+            <div class="grid">
+              <a href="/admin/documents/<%= doc.id %>" role="button" class="outline">View</a>
+              <% unless doc.processed %>
+                <form action="/admin/documents/<%= doc.id %>/reprocess" method="post" style="display: inline;">
+                  <button type="submit" class="outline">Process</button>
+                </form>
+              <% end %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <footer>
+    <div class="pagination">
+      <% if @documents.previous_page %>
+        <a href="?page=<%= @documents.previous_page %>" class="previous">← Previous</a>
+      <% end %>
+      
+      <span class="page-info">
+        Page <%= @documents.current_page %> of <%= @documents.total_pages %>
+      </span>
+      
+      <% if @documents.next_page %>
+        <a href="?page=<%= @documents.next_page %>" class="next">Next →</a>
+      <% end %>
+    </div>
+  </footer>
+</article>
+
+<style>
+.grid {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.pagination {
+  margin: 20px 0;
+  text-align: center;
+}
+.pagination a {
+  display: inline-block;
+  padding: 8px 12px;
+  margin: 0 4px;
+  border-radius: 4px;
+  text-decoration: none;
+  background: #f8f9fa;
+  color: #1a73e8;
+}
+.pagination a:hover {
+  background: #e9ecef;
+}
+.page-info {
+  margin: 0 15px;
+  color: #6c757d;
+}
+</style>

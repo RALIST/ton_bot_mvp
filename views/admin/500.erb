@@ -1,0 +1,40 @@
+<article>
+  <header>
+    <h1>500 - Server Error</h1>
+  </header>
+  
+  <div class="grid">
+    <div>
+      <p>Something went wrong on our end.</p>
+      <% if @error %>
+        <div class="error-details">
+          <pre><code><%= @error %></code></pre>
+        </div>
+      <% end %>
+      <a href="/" role="button">Return to Dashboard</a>
+    </div>
+  </div>
+</article>
+
+<style>
+.grid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  text-align: center;
+}
+.error-details {
+  margin: 20px 0;
+  text-align: left;
+  background: #f8d7da;
+  padding: 15px;
+  border-radius: 4px;
+  max-width: 600px;
+}
+.error-details pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+</style>

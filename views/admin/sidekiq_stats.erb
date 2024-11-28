@@ -1,0 +1,97 @@
+<article>
+  <header>
+    <h1>Job Queue Status</h1>
+  </header>
+
+  <div class="stats-grid">
+    <article class="stat-card">
+      <h3>Processed Jobs</h3>
+      <div class="stat-value" id="sidekiq-processed"><%= @stats.processed %></div>
+    </article>
+
+    <article class="stat-card">
+      <h3>Failed Jobs</h3>
+      <div class="stat-value" id="sidekiq-failed"><%= @stats.failed %></div>
+    </article>
+
+    <article class="stat-card">
+      <h3>Enqueued Jobs</h3>
+      <div class="stat-value" id="sidekiq-enqueued"><%= @stats.enqueued %></div>
+    </article>
+
+    <article class="stat-card">
+      <h3>Active Workers</h3>
+      <div class="stat-value" id="sidekiq-workers"><%= @workers.size %></div>
+    </article>
+  </div>
+
+  <section>
+    <h2>Active Queues</h2>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Queue</th>
+          <th>Size</th>
+          <th>Latency</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @queues.each do |queue| %>
+          <tr>
+            <td><%= queue.name %></td>
+            <td><%= queue.size %></td>
+            <td><%= queue.latency.round(2) %>s</td>
+            <td>
+              <% if queue.size > 0 %>
+                <form action="/admin/queues/<%= queue.name %>/clear" method="post" style="display: inline;">
+                  <button type="submit" class="outline">Clear Queue</button>
+                </form>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Active Workers</h2>
+    <table role="grid">
+      <thead>
+        <tr>
+          <th>Process ID</th>
+          <th>Thread ID</th>
+          <th>Queue</th>
+          <th>Job</th>
+          <th>Started At</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @workers.each do |process_id, thread_id, work| %>
+          <tr>
+            <td><%= process_id %></td>
+            <td><%= thread_id %></td>
+            <td><%= work['queue'] %></td>
+            <td><%= work['payload']['class'] %></td>
+            <td><%= Time.at(work['run_at']).strftime('%Y-%m-%d %H:%M:%S') %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+</article>
+
+<script>
+// Auto-refresh stats every 10 seconds
+setInterval(() => {
+  fetch('/admin/api/stats')
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('sidekiq-processed').textContent = data.sidekiq.processed;
+      document.getElementById('sidekiq-failed').textContent = data.sidekiq.failed;
+      document.getElementById('sidekiq-enqueued').textContent = data.sidekiq.enqueued;
+      document.getElementById('sidekiq-workers').textContent = data.sidekiq.workers;
+    });
+}, 10000);
+</script>

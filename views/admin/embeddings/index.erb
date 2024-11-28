@@ -1,0 +1,101 @@
+<article>
+  <header>
+    <h1>Embeddings</h1>
+    <div>
+      <form action="/admin/embeddings" method="get" class="grid">
+        <div>
+          <input type="search" name="q" placeholder="Search by content" value="<%= params[:q] %>">
+        </div>
+        <div>
+          <select name="document_id">
+            <option value="">All Documents</option>
+            <% RawDocument.order(:title).each do |doc| %>
+              <option value="<%= doc.id %>" <%= 'selected' if params[:document_id].to_i == doc.id %>>
+                <%= doc.title %>
+              </option>
+            <% end %>
+          </select>
+        </div>
+        <div>
+          <button type="submit">Search</button>
+        </div>
+      </form>
+    </div>
+  </header>
+
+  <table role="grid">
+    <thead>
+      <tr>
+        <th>Document</th>
+        <th>Content</th>
+        <th>Section</th>
+        <th>Created At</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @embeddings.each do |embedding| %>
+        <tr>
+          <td>
+            <a href="/admin/documents/<%= embedding.document_id %>">
+              <%= RawDocument.find(embedding.document_id).title rescue "Document #{embedding.document_id}" %>
+            </a>
+          </td>
+          <td><%= truncate(embedding.content, length: 100) %></td>
+          <td><%= embedding.section %></td>
+          <td><%= embedding.created_at.strftime('%Y-%m-%d %H:%M:%S') %></td>
+          <td>
+            <a href="/admin/embeddings/<%= embedding.id %>" role="button" class="outline">View</a>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <footer>
+    <div class="pagination">
+      <% if @embeddings.previous_page %>
+        <a href="?page=<%= @embeddings.previous_page %>" class="previous">← Previous</a>
+      <% end %>
+      
+      <span class="page-info">
+        Page <%= @embeddings.current_page %> of <%= @embeddings.total_pages %>
+      </span>
+      
+      <% if @embeddings.next_page %>
+        <a href="?page=<%= @embeddings.next_page %>" class="next">Next →</a>
+      <% end %>
+    </div>
+  </footer>
+</article>
+
+<style>
+.grid {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+select {
+  min-width: 200px;
+}
+.pagination {
+  margin: 20px 0;
+  text-align: center;
+}
+.pagination a {
+  display: inline-block;
+  padding: 8px 12px;
+  margin: 0 4px;
+  border-radius: 4px;
+  text-decoration: none;
+  background: #f8f9fa;
+  color: #1a73e8;
+}
+.pagination a:hover {
+  background: #e9ecef;
+}
+.page-info {
+  margin: 0 15px;
+  color: #6c757d;
+}
+</style>

@@ -1,0 +1,125 @@
+<article>
+  <nav>
+    <ul>
+      <li>
+        <a href="/admin/documents" role="button" class="outline">← Back to Documents</a>
+      </li>
+    </ul>
+    <ul>
+      <% unless @document.processed %>
+        <li>
+          <form action="/admin/documents/<%= @document.id %>/reprocess" method="post" style="display: inline;">
+            <button type="submit">Process Document</button>
+          </form>
+        </li>
+      <% end %>
+    </ul>
+  </nav>
+
+  <header>
+    <h1><%= @document.title %></h1>
+    <div class="metadata">
+      <span class="badge <%= @document.processed ? 'success' : 'warning' %>">
+        <%= @document.processed ? 'Processed' : 'Pending' %>
+      </span>
+      <span>Section: <%= @document.section %></span>
+      <span>Last Updated: <%= @document.updated_at.strftime('%Y-%m-%d %H:%M:%S') %></span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Document Details</h2>
+    <dl>
+      <dt>URL</dt>
+      <dd><a href="<%= @document.url %>" target="_blank"><%= @document.url %></a></dd>
+      
+      <dt>Created At</dt>
+      <dd><%= @document.created_at.strftime('%Y-%m-%d %H:%M:%S') %></dd>
+      
+      <dt>Updated At</dt>
+      <dd><%= @document.updated_at.strftime('%Y-%m-%d %H:%M:%S') %></dd>
+      
+      <dt>Embeddings Count</dt>
+      <dd><%= @document.embedding_count %></dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Content</h2>
+    <details>
+      <summary>Show Content</summary>
+      <pre><code><%= @document.content %></code></pre>
+    </details>
+  </section>
+
+  <section>
+    <h2>HTML Content</h2>
+    <details>
+      <summary>Show HTML</summary>
+      <pre><code><%= @document.html_content %></code></pre>
+    </details>
+  </section>
+
+  <section>
+    <h2>Metadata</h2>
+    <pre><code><%= JSON.pretty_generate(JSON.parse(@document.metadata)) rescue @document.metadata %></code></pre>
+  </section>
+
+  <% if @document.processed %>
+    <section>
+      <h2>Embeddings</h2>
+      <table role="grid">
+        <thead>
+          <tr>
+            <th>Content</th>
+            <th>Created At</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% Embedding.where(document_id: @document.id).order(created_at: :desc).limit(5).each do |embedding| %>
+            <tr>
+              <td><%= truncate(embedding.content, length: 100) %></td>
+              <td><%= embedding.created_at.strftime('%Y-%m-%d %H:%M:%S') %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <p>
+        <a href="/admin/embeddings?document_id=<%= @document.id %>" role="button" class="outline">View All Embeddings</a>
+      </p>
+    </section>
+  <% end %>
+</article>
+
+<style>
+.metadata {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin: 10px 0 30px;
+}
+.badge {
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 0.9em;
+}
+.badge.success {
+  background: #28a745;
+  color: white;
+}
+.badge.warning {
+  background: #ffc107;
+  color: black;
+}
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 20px;
+}
+dt {
+  font-weight: bold;
+}
+section {
+  margin: 30px 0;
+}
+</style>

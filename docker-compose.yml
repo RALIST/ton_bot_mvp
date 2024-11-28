@@ -1,0 +1,57 @@
+services:
+  app:
+    build: .
+    ports:
+      - "4567:4567"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - .:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build: .
+    command: bash -c "mkdir -p /app/log /app/tmp/pids && bundle exec sidekiq -C /app/config/sidekiq.yml -r ./lib/jobs/embedding_processor_job.rb"
+    env_file:
+      - .env
+    depends_on:
+      - app
+      - db
+      - redis
+    volumes:
+      - .:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  db:
+    image: ankane/pgvector:latest
+    environment:
+      - POSTGRES_DB=ton_bot
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6369:6369"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
+  bundle_cache:

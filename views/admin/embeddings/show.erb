@@ -1,0 +1,110 @@
+<article>
+  <nav>
+    <ul>
+      <li>
+        <a href="/admin/embeddings" role="button" class="outline">← Back to Embeddings</a>
+      </li>
+    </ul>
+  </nav>
+
+  <header>
+    <h1>Embedding Details</h1>
+    <div class="metadata">
+      <span>Created: <%= @embedding.created_at.strftime('%Y-%m-%d %H:%M:%S') %></span>
+      <span>Section: <%= @embedding.section %></span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Document Information</h2>
+    <% if document = RawDocument.find_by(id: @embedding.document_id) %>
+      <dl>
+        <dt>Title</dt>
+        <dd><%= document.title %></dd>
+        
+        <dt>URL</dt>
+        <dd><a href="<%= document.url %>" target="_blank"><%= document.url %></a></dd>
+        
+        <dt>Document Status</dt>
+        <dd><span class="badge <%= document.processed ? 'success' : 'warning' %>">
+          <%= document.processed ? 'Processed' : 'Pending' %>
+        </span></dd>
+      </dl>
+      <p>
+        <a href="/admin/documents/<%= document.id %>" role="button" class="outline">View Document</a>
+      </p>
+    <% else %>
+      <p class="warning">Original document not found (ID: <%= @embedding.document_id %>)</p>
+    <% end %>
+  </section>
+
+  <section>
+    <h2>Content</h2>
+    <pre><code><%= @embedding.content %></code></pre>
+  </section>
+
+  <section>
+    <h2>Metadata</h2>
+    <pre><code><%= JSON.pretty_generate(JSON.parse(@embedding.metadata)) rescue @embedding.metadata %></code></pre>
+  </section>
+
+  <section>
+    <h2>Embedding Vector</h2>
+    <details>
+      <summary>Show Vector (1536 dimensions)</summary>
+      <div class="vector-preview">
+        <%= @embedding.embedding %>
+      </div>
+    </details>
+  </section>
+</article>
+
+<style>
+.metadata {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin: 10px 0 30px;
+}
+.badge {
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 0.9em;
+}
+.badge.success {
+  background: #28a745;
+  color: white;
+}
+.badge.warning {
+  background: #ffc107;
+  color: black;
+}
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 20px;
+  margin: 20px 0;
+}
+dt {
+  font-weight: bold;
+}
+section {
+  margin: 30px 0;
+}
+.vector-preview {
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.9em;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+.warning {
+  color: #856404;
+  background-color: #fff3cd;
+  border: 1px solid #ffeeba;
+  padding: 10px;
+  border-radius: 4px;
+}
+</style>

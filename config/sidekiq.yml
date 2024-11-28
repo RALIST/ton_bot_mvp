@@ -1,0 +1,35 @@
+---
+:verbose: false
+:concurrency: 5
+:timeout: 30
+
+:queues:
+  - [embeddings, 3] # Higher priority for embedding processing
+  - [default, 1] # Lower priority for other jobs
+
+:limits:
+  embeddings: 3 # Max 3 embedding jobs at once
+  default: 2 # Max 2 default jobs at once
+
+development:
+  :concurrency: 5
+  :logfile: ./log/sidekiq.log
+
+production:
+  :concurrency: 10
+  :logfile: ./log/sidekiq.log
+
+:max_retries: 3
+:retry_delay: 600 # 10 minutes between retries
+
+# Monitor dead jobs (failed after all retries)
+:dead_max_jobs: 1000
+:dead_timeout_in_seconds: 604800 # 7 days
+
+# Process lifecycle
+:pidfile: ./tmp/pids/sidekiq.pid
+:daemon: false # Run in foreground for Docker
+
+# Memory limits
+:max_memory: 1024 # MB
+:min_memory: 512 # MB

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TON Bot Admin - Login</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+  <style>
+    .grid {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    article {
+      margin: 0;
+      max-width: 400px;
+      padding: 20px;
+    }
+    .error {
+      color: #dc3545;
+      margin-bottom: 20px;
+      padding: 10px;
+      border-radius: 4px;
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <article class="grid">
+      <div>
+        <hgroup>
+          <h1>TON Bot Admin</h1>
+          <h2>Login to access the admin panel</h2>
+        </hgroup>
+        
+        <% if @error %>
+          <p class="error"><%= @error %></p>
+        <% end %>
+
+        <form action="/admin/login" method="post">
+          <label for="token">
+            Admin Token
+            <input type="password" id="token" name="token" placeholder="Enter your admin token" required autofocus>
+          </label>
+          <button type="submit" class="contrast">Login</button>
+        </form>
+      </div>
+    </article>
+  </main>
+</body>
+</html>

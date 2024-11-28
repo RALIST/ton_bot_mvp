@@ -1,0 +1,93 @@
+<div class="sidekiq-stats">
+  <h2>Job Queue Status</h2>
+  
+  <div class="stats-grid">
+    <article class="stat-card">
+      <h3>Processed Jobs</h3>
+      <div class="stat-value" id="processed-jobs">
+        <%= Sidekiq::Stats.new.processed %>
+      </div>
+    </article>
+
+    <article class="stat-card">
+      <h3>Failed Jobs</h3>
+      <div class="stat-value" id="failed-jobs">
+        <%= Sidekiq::Stats.new.failed %>
+      </div>
+    </article>
+
+    <article class="stat-card">
+      <h3>Enqueued Jobs</h3>
+      <div class="stat-value" id="enqueued-jobs">
+        <%= Sidekiq::Stats.new.enqueued %>
+      </div>
+    </article>
+
+    <article class="stat-card">
+      <h3>Active Workers</h3>
+      <div class="stat-value" id="active-workers">
+        <%= Sidekiq::Workers.new.size %>
+      </div>
+    </article>
+  </div>
+
+  <h3>Queue Sizes</h3>
+  <table role="grid">
+    <thead>
+      <tr>
+        <th>Queue</th>
+        <th>Size</th>
+        <th>Latency</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% Sidekiq::Queue.all.each do |queue| %>
+        <tr>
+          <td><%= queue.name %></td>
+          <td><%= queue.size %></td>
+          <td><%= queue.latency.round(2) %>s</td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<style>
+.sidekiq-stats {
+  padding: 20px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.stat-card {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2em;
+  font-weight: bold;
+  color: #1a73e8;
+}
+</style>
+
+<script>
+// Auto-refresh stats every 10 seconds
+setInterval(() => {
+  fetch('/admin/sidekiq/stats')
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('processed-jobs').textContent = data.processed;
+      document.getElementById('failed-jobs').textContent = data.failed;
+      document.getElementById('enqueued-jobs').textContent = data.enqueued;
+      document.getElementById('active-workers').textContent = data.workers;
+    });
+}, 10000);
+</script>
