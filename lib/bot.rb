@@ -41,7 +41,7 @@ module TonBot
       # Find relevant context
       puts 'Finding relevant context...'
       begin
-        context = find_relevant_context(question_embedding)
+        context = find_relevant_context(question, question_embedding)
         puts "Found #{context.length} relevant context items"
       rescue StandardError => e
         puts "Error finding relevant context: #{e.message}"
@@ -72,15 +72,34 @@ module TonBot
       nil
     end
 
-    def find_relevant_context(question_embedding)
+    def find_relevant_context(question, question_embedding)
       return [] unless question_embedding
 
-      # First try to find context from processed embeddings
-      similar_chunks = @embeddings.find_similar(question_embedding, 5)
+      context_filter = determine_context_filter(question)
       
-      # If we don't have enough processed embeddings, supplement with raw documents
+      # Try contextual search first
+      similar_chunks = Embedding.contextual_search(
+        query_embedding: question_embedding,
+        context_filter: context_filter,
+        limit: 5
+      )
+      
+      # If not enough results, try hybrid search
+      if similar_chunks.length < 3
+        puts "Found only #{similar_chunks.length} contextual results, trying hybrid search..."
+        hybrid_chunks = Embedding.hybrid_search(
+          query_text: question,
+          query_embedding: question_embedding,
+          limit: 5 - similar_chunks.length
+        )
+        
+        # Combine results, removing duplicates
+        similar_chunks = (similar_chunks + hybrid_chunks).uniq(&:id)
+      end
+      
+      # If still not enough results, supplement with raw documents
       if similar_chunks.length < 5
-        puts "Found only #{similar_chunks.length} processed embeddings, checking raw documents..."
+        puts "Found only #{similar_chunks.length} processed results, checking raw documents..."
         raw_docs = find_relevant_raw_documents(5 - similar_chunks.length)
         
         # Combine processed and raw results
@@ -92,8 +111,28 @@ module TonBot
       end
     end
 
+    def determine_context_filter(question)
+      filter = {}
+      
+      # Check if question is likely about code
+      if question.downcase.match?(/\b(code|function|method|api|implementation|example|how to|usage)\b/)
+        filter[:has_code] = true
+      end
+      
+      # Detect specific sections from question
+      case question.downcase
+      when /\b(smart contract|contract|solidity|func|tvm)\b/
+        filter[:section] = 'develop'
+      when /\b(validator|validation|stake|mining)\b/
+        filter[:section] = 'participate'
+      when /\b(concept|architecture|design|blockchain|how\s+\w+\s+works)\b/
+        filter[:section] = 'learn'
+      end
+      
+      filter
+    end
+
     def find_relevant_raw_documents(limit)
-      # Simple keyword-based fallback when embeddings aren't ready
       RawDocument.unprocessed.order(created_at: :desc).limit(limit)
     end
 
@@ -102,7 +141,8 @@ module TonBot
         {
           content: chunk.content,
           url: chunk.url,
-          section: chunk.section
+          section: chunk.section,
+          similarity: chunk.try(:similarity) || chunk.try(:combined_score)
         }
       end
     end
@@ -118,8 +158,13 @@ module TonBot
     end
 
     def generate_response(question, context)
-      context_text = context.map do |c|
-        "Source (#{c[:url]}):\n#{c[:content]}\n\n"
+      # Sort context by similarity if available
+      sorted_context = context.sort_by { |c| -c[:similarity].to_f }
+      
+      context_text = sorted_context.map.with_index do |c, i|
+        # Include relevance score in debug mode
+        score_info = c[:similarity] ? " (relevance: #{(c[:similarity] * 100).round(2)}%)" : ''
+        "Source #{i + 1} (#{c[:url]})#{score_info}:\n#{c[:content]}\n\n"
       end.join("\n")
 
       begin
@@ -128,7 +173,9 @@ module TonBot
             role: 'user',
             content: <<~PROMPT
               You are a TON blockchain expert assistant. Use the following context to answer the question.
-              If you can't find the answer in the context, say so and provide a general response about TON blockchain. Avoid showing to user that you are using some context for answer, try always to answer in human form.
+              If you can't find the answer in the context, say so and provide a general response about TON blockchain. 
+              Avoid showing to user that you are using some context for answer, try always to answer in human form.
+              If the context includes code examples and the question is about implementation, include relevant code snippets in your answer.
 
               Context:
               #{context_text}
@@ -147,7 +194,7 @@ module TonBot
 
         {
           answer: response['content']&.first&.dig('text'),
-          sources: context.map { |c| c[:url] }.uniq,
+          sources: sorted_context.map { |c| c[:url] }.uniq,
           timestamp: Time.now.utc.iso8601
         }
       rescue StandardError => e
