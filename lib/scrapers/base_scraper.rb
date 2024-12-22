@@ -10,6 +10,21 @@ module TonBot
         @processed_urls = Set.new
       end
 
+      def retry_scrape(failed_scrape)
+        result = scrape_page(failed_scrape.url, base_url)
+        if result
+          failed_scrape.mark_as_successful
+          puts "Successfully retried scrape for #{failed_scrape.url}"
+        end
+      rescue StandardError => e
+        puts "Failed to retry scrape for #{failed_scrape.url}: #{e.message}"
+        FailedScrape.record_failure(
+          url: failed_scrape.url,
+          source: source_name,
+          error: e.message
+        )
+      end
+
       protected
 
       def scrape_page(url, base_url)
@@ -20,13 +35,18 @@ module TonBot
 
         begin
           response = HTTParty.get(url)
-          return unless response.success?
+          unless response.success?
+            record_failure(url, "HTTP error: #{response.code}")
+            return false
+          end
 
           doc = Nokogiri::HTML(response.body)
-          store_document(doc, url)
-          find_and_queue_links(doc, url, base_url)
+          stored_doc = store_document(doc, url)
+          find_and_queue_links(doc, url, base_url) if stored_doc
+          true
         rescue StandardError => e
-          puts "Error scraping #{url}: #{e.message}"
+          record_failure(url, e.message)
+          false
         end
       end
 
@@ -64,7 +84,7 @@ module TonBot
           metadata: metadata
         )
       rescue StandardError => e
-        puts "Error storing document #{url}: #{e.message}"
+        record_failure(url, "Error storing document: #{e.message}")
         nil
       end
 
@@ -131,6 +151,11 @@ module TonBot
         raise NotImplementedError
       end
 
+      def base_url
+        # Override in specific scrapers
+        raise NotImplementedError
+      end
+
       def process_unprocessed_documents
         total = RawDocument.unprocessed.where("metadata->>'source' = ?", source_name).count
         puts "Found #{total} unprocessed #{source_name} documents. Enqueueing for processing..."
@@ -143,6 +168,17 @@ module TonBot
           end
 
         puts "All #{source_name} documents have been enqueued for processing"
+      end
+
+      private
+
+      def record_failure(url, error)
+        puts "Failed to scrape #{url}: #{error}"
+        FailedScrape.record_failure(
+          url: url,
+          source: source_name,
+          error: error
+        )
       end
     end
   end

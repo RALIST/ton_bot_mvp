@@ -1,81 +1,126 @@
-<h1>Dashboard</h1>
+<div class="container mx-auto px-4 py-8">
+  <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
 
-<div class="stats-grid">
-  <article class="stat-card">
-    <h3>Total Documents</h3>
-    <div class="stat-value" id="total-documents"><%= @stats[:total_documents] %></div>
-  </article>
-  
-  <article class="stat-card">
-    <h3>Processed Documents</h3>
-    <div class="stat-value" id="processed-documents"><%= @stats[:processed_documents] %></div>
-  </article>
-  
-  <article class="stat-card">
-    <h3>Total Embeddings</h3>
-    <div class="stat-value" id="total-embeddings"><%= @stats[:total_embeddings] %></div>
-  </article>
-  
-  <article class="stat-card">
-    <h3>Pending Jobs</h3>
-    <div class="stat-value" id="sidekiq-enqueued"><%= @stats[:sidekiq_stats].enqueued %></div>
-  </article>
+  <!-- Stats Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Documents Stats -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-gray-500 text-sm font-medium">Documents</h3>
+      <div class="flex items-center">
+        <div class="flex-1">
+          <p class="text-2xl font-semibold text-gray-900"><%= @stats[:total_documents] %></p>
+          <p class="text-sm text-gray-500">Total</p>
+        </div>
+        <div class="flex-1">
+          <p class="text-2xl font-semibold text-green-600"><%= @stats[:processed_documents] %></p>
+          <p class="text-sm text-gray-500">Processed</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Embeddings Stats -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-gray-500 text-sm font-medium">Embeddings</h3>
+      <p class="text-2xl font-semibold text-gray-900"><%= @stats[:total_embeddings] %></p>
+      <p class="text-sm text-gray-500">Total Generated</p>
+    </div>
+
+    <!-- Failed Scrapes Stats -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-gray-500 text-sm font-medium">Failed Scrapes</h3>
+      <div class="flex items-center">
+        <div class="flex-1">
+          <p class="text-2xl font-semibold text-red-600"><%= @stats[:failed_scrapes] %></p>
+          <p class="text-sm text-gray-500">Total Failed</p>
+        </div>
+        <div class="flex-1">
+          <p class="text-2xl font-semibold text-yellow-600"><%= @stats[:retryable_scrapes] %></p>
+          <p class="text-sm text-gray-500">Retryable</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidekiq Stats -->
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-gray-500 text-sm font-medium">Background Jobs</h3>
+      <div class="flex items-center">
+        <div class="flex-1">
+          <p class="text-2xl font-semibold text-blue-600"><%= @stats[:sidekiq_stats].enqueued %></p>
+          <p class="text-sm text-gray-500">Queued</p>
+        </div>
+        <div class="flex-1">
+          <p class="text-2xl font-semibold text-red-600"><%= @stats[:sidekiq_stats].failed %></p>
+          <p class="text-sm text-gray-500">Failed</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Recent Documents -->
+    <div class="bg-white rounded-lg shadow">
+      <div class="p-6 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Recent Documents</h2>
+      </div>
+      <div class="p-6">
+        <% @recent_documents.each do |doc| %>
+          <div class="mb-4 last:mb-0">
+            <h3 class="text-sm font-medium text-gray-900">
+              <a href="/admin/documents/<%= doc.id %>" class="hover:text-blue-600">
+                <%= doc.title || doc.url %>
+              </a>
+            </h3>
+            <p class="text-sm text-gray-500">
+              <%= doc.processed ? 'Processed' : 'Pending' %> • 
+              <%= time_ago_in_words(doc.created_at) %> ago
+            </p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Recent Failed Scrapes -->
+    <div class="bg-white rounded-lg shadow">
+      <div class="p-6 border-b border-gray-200">
+        <div class="flex justify-between items-center">
+          <h2 class="text-lg font-semibold text-gray-900">Recent Failed Scrapes</h2>
+          <a href="/admin/failed-scrapes" class="text-sm text-blue-600 hover:text-blue-800">View All</a>
+        </div>
+      </div>
+      <div class="p-6">
+        <% if @recent_failures.any? %>
+          <% @recent_failures.each do |failure| %>
+            <div class="mb-4 last:mb-0">
+              <h3 class="text-sm font-medium text-gray-900 truncate">
+                <%= failure.url %>
+              </h3>
+              <p class="text-sm text-gray-500">
+                <%= failure.source %> • 
+                <%= failure.retry_count %> retries • 
+                Last attempt <%= time_ago_in_words(failure.last_retry_at) %> ago
+              </p>
+              <p class="text-xs text-red-600 mt-1">
+                <%= failure.error %>
+              </p>
+            </div>
+          <% end %>
+        <% else %>
+          <p class="text-sm text-gray-500">No failed scrapes</p>
+        <% end %>
+      </div>
+    </div>
+  </div>
 </div>
 
-<article>
-  <header>
-    <h2>Recent Documents</h2>
-    <a href="/admin/documents" role="button">View All Documents</a>
-  </header>
-  
-  <table role="grid">
-    <thead>
-      <tr>
-        <th>Title</th>
-        <th>URL</th>
-        <th>Status</th>
-        <th>Embeddings</th>
-        <th>Last Updated</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @recent_documents.each do |doc| %>
-        <tr>
-          <td><%= doc.title %></td>
-          <td><%= doc.url %></td>
-          <td><%= doc.processed ? 'Processed' : 'Pending' %></td>
-          <td><%= doc.embedding_count %></td>
-          <td><%= doc.updated_at.strftime('%Y-%m-%d %H:%M:%S') %></td>
-          <td>
-            <a href="/admin/documents/<%= doc.id %>" role="button" class="outline">View</a>
-          </td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
-</article>
-
-<article>
-  <header>
-    <h2>Job Queue Status</h2>
-    <a href="/admin/sidekiq-stats" role="button">View Queue Details</a>
-  </header>
-
-  <div class="stats-grid">
-    <article class="stat-card">
-      <h3>Processed Jobs</h3>
-      <div class="stat-value" id="sidekiq-processed"><%= @stats[:sidekiq_stats].processed %></div>
-    </article>
-
-    <article class="stat-card">
-      <h3>Failed Jobs</h3>
-      <div class="stat-value" id="sidekiq-failed"><%= @stats[:sidekiq_stats].failed %></div>
-    </article>
-
-    <article class="stat-card">
-      <h3>Active Workers</h3>
-      <div class="stat-value" id="sidekiq-workers"><%= Sidekiq::Workers.new.size %></div>
-    </article>
-  </div>
-</article>
+<!-- Auto-refresh stats -->
+<script>
+  function refreshStats() {
+    fetch('/admin/api/stats')
+      .then(response => response.json())
+      .then(stats => {
+        // Update stats here
+      });
+  }
+  setInterval(refreshStats, 30000); // Refresh every 30 seconds
+</script>

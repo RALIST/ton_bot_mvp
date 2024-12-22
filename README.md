@@ -1,283 +1,217 @@
-# TON Blockchain AI Bot MVP
+# Simple TON Blockchain AI Bot Implementation
 
-A Ruby-based implementation of an AI bot that provides information about the TON blockchain using RAG (Retrieval Augmented Generation) with Claude 3.5 Sonnet.
+## Overview
 
-## Features
+This implementation focuses on creating a minimal viable RAG-based AI bot that uses [ton.org](https://ton.org/) as its primary data source. The bot will provide accurate information about TON blockchain fundamentals, features, and updates.
 
-- Web scraping of ton.org documentation
-- Vector embeddings for efficient information retrieval
-- Claude 3.5 Sonnet for accurate responses
-- Redis caching for performance
-- Simple REST API interface
+## Data Collection
 
-## Prerequisites
+### Source Analysis: ton.org
 
-- Anthropic API key
+- **Main Sections to Process**
+  - Documentation
+  - Blog posts
+  - Feature descriptions
+  - Technical specifications
+  - Ecosystem updates
 
-For traditional setup:
+### Data Extraction Process
 
-- Ruby 3.3.0
-- PostgreSQL with pgvector extension
-- Redis
+1. **Initial Crawl**
 
-For Docker setup:
+   - Start from homepage
+   - Follow internal links within ton.org domain
+   - Store HTML content with URL and timestamp
 
-- Docker
-- Docker Compose
+2. **Content Processing**
 
-## Environment Setup (Important!)
+   - Extract main article content
+   - Remove navigation elements
+   - Preserve headings and structure
+   - Keep code examples and technical details
 
-1. Copy the example environment file:
+3. **Metadata Extraction**
+   - Page title
+   - Publication date
+   - Section/category
+   - Related links
 
-```bash
-cp .env.example .env
-```
+## Data Processing
 
-2. Edit .env with your configuration:
+### Text Processing
 
-```bash
-# Required API Keys
-ANTHROPIC_API_KEY=your_claude_api_key_here  # Required for embeddings generation
-ADMIN_TOKEN=your_admin_token_here           # Required for content refresh
+1. **Cleaning Steps**
 
-# Database Configuration (Docker defaults)
-DB_HOST=db                  # Use 'db' for Docker, 'localhost' for traditional setup
-DB_PORT=5432
-DB_NAME=ton_bot
-DB_USER=postgres
-DB_PASSWORD=postgres
+   - Remove HTML tags
+   - Normalize whitespace
+   - Fix special characters
+   - Preserve code blocks formatting
 
-# Redis Configuration (Docker defaults)
-REDIS_URL=redis://redis:6379/0  # Use this URL for Docker setup
+2. **Content Chunking**
+   - Split by natural sections
+   - Maximum chunk size: 512 tokens
+   - Preserve context between chunks
+   - Include section headers
 
-# Server Configuration
-PORT=4567
-RACK_ENV=development
-```
-
-Note: When using Docker, the DB_HOST and REDIS_URL are preconfigured to use the Docker service names. Do not change these values unless you're using the traditional setup.
-
-## Docker Setup
-
-1. Ensure your .env file is properly configured (see Environment Setup above)
-
-2. Build and start the services:
-
-```bash
-docker-compose up -d
-```
-
-3. Set up the database (first time only):
-
-```bash
-docker-compose exec app bundle exec ruby setup.rb
-```
-
-4. Initial content scraping:
-
-```bash
-curl -X POST http://localhost:4567/refresh \
-  -H "Authorization: Bearer your_admin_token" \
-  -H "Content-Type: application/json"
-```
-
-The application will be available at http://localhost:4567
-
-To stop the services:
-
-```bash
-docker-compose down
-```
-
-To view logs:
-
-```bash
-docker-compose logs -f
-```
-
-## Traditional Setup
-
-1. Install dependencies:
-
-```bash
-bundle install
-```
-
-2. Set up environment variables (see Environment Setup above, but use localhost for DB_HOST)
-
-3. Set up the database:
-
-```bash
-createdb ton_bot
-psql ton_bot -c 'CREATE EXTENSION vector;'
-```
-
-4. Initial content scraping:
-
-```bash
-curl -X POST http://localhost:4567/refresh \
-  -H "Authorization: Bearer your_admin_token" \
-  -H "Content-Type: application/json"
-```
-
-## Running the Server
-
-With Docker:
-
-```bash
-docker-compose up -d
-```
-
-Traditional:
-
-```bash
-bundle exec puma
-```
-
-## API Usage
-
-### Ask a Question
-
-```bash
-curl -X POST http://localhost:4567/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question": "What is TON blockchain?"}'
-```
-
-Response format:
+### Document Structure
 
 ```json
 {
-  "answer": "Detailed answer about TON blockchain...",
-  "sources": [
-    "https://ton.org/learn/ton-concept",
-    "https://ton.org/learn/decentralized-network"
+  "id": "unique_id",
+  "url": "https://ton.org/path",
+  "title": "Page Title",
+  "timestamp": "ISO-8601 date",
+  "chunks": [
+    {
+      "id": "chunk_id",
+      "content": "processed text",
+      "section": "section name",
+      "position": 1
+    }
   ],
-  "timestamp": "2024-03-15T10:30:00Z"
+  "metadata": {
+    "category": "docs/blog/feature",
+    "last_updated": "ISO-8601 date"
+  }
 }
 ```
 
-### Refresh Content (Admin Only)
+## RAG Implementation
 
-```bash
-curl -X POST http://localhost:4567/refresh \
-  -H "Authorization: Bearer your_admin_token" \
-  -H "Content-Type: application/json"
+### Vector Database Setup
+
+1. **Collection Structure**
+
+   - Namespace: ton_docs
+   - Dimensions: based on embedding model
+   - Metadata fields: url, title, section, timestamp
+
+2. **Indexing Process**
+   - Generate embeddings for each chunk
+   - Store with metadata
+   - Update on content changes
+
+### Query Processing
+
+1. **User Query Handling**
+
+   - Clean and normalize query
+   - Generate query embedding
+   - Set context window (default: 5 chunks)
+
+2. **Retrieval Process**
+
+   - Search similar vectors
+   - Filter by relevance score (threshold: 0.7)
+   - Retrieve surrounding chunks for context
+
+3. **Response Generation**
+   - Combine relevant chunks
+   - Format with source attribution
+   - Include direct links to ton.org
+
+## Simple Implementation Flow
+
+```
+[Data Collection]
+ton.org → HTML Extraction → Content Cleaning
+    ↓
+[Processing]
+Text Chunks → Embeddings → Vector Storage
+    ↓
+[Query Handling]
+User Question → Embedding → Vector Search
+    ↓
+[Response]
+Context Assembly → Answer Generation → Source Links
 ```
 
-## Architecture
+## Update Mechanism
 
-### Components
+### Regular Updates
 
-1. **Scraper (`lib/scraper.rb`)**
+1. **Daily Checks**
 
-   - Handles web scraping of ton.org
-   - Processes and cleans HTML content
-   - Extracts relevant information
+   - Scan ton.org for new content
+   - Check modified pages
+   - Update changed content
 
-2. **Embeddings (`lib/embeddings.rb`)**
+2. **Update Process**
+   - Process new/changed content
+   - Generate new embeddings
+   - Update vector database
+   - Maintain version history
 
-   - Manages vector embeddings
-   - Handles database operations
-   - Implements similarity search
+## Example Interactions
 
-3. **Bot (`lib/bot.rb`)**
+### Query Types
 
-   - Integrates with Claude 3.5 Sonnet
-   - Manages response generation
-   - Handles caching
+1. **Basic Information**
 
-4. **API (`config.ru`)**
-   - Provides REST endpoints
-   - Handles request/response
-   - Implements basic auth
+   ```
+   Q: "What is TON blockchain?"
+   Process:
+   - Search vectors for introduction sections
+   - Combine relevant chunks
+   - Provide overview with source
+   ```
 
-## Database Schema
+2. **Technical Details**
 
-```sql
-CREATE TABLE embeddings (
-  id SERIAL PRIMARY KEY,
-  embedding vector(1536),
-  content TEXT,
-  document_id TEXT,
-  section TEXT,
-  url TEXT,
-  metadata JSONB,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+   ```
+   Q: "How does TON smart contract work?"
+   Process:
+   - Retrieve technical documentation chunks
+   - Include code examples if available
+   - Link to full documentation
+   ```
 
-## Caching Strategy
+3. **Latest Updates**
+   ```
+   Q: "What's new in TON?"
+   Process:
+   - Sort by timestamp
+   - Retrieve recent blog posts
+   - Summarize updates
+   ```
 
-- Redis is used for caching responses
-- Default TTL: 1 hour
-- Cache key format: `ton_bot:{normalized_question}`
+## Implementation Steps
 
-## Error Handling
+1. **Initial Setup**
 
-The API returns appropriate HTTP status codes:
+   - Set up web scraper for ton.org
+   - Create document processor
+   - Initialize vector database
 
-- 200: Successful response
-- 400: Invalid request
-- 401: Unauthorized
-- 500: Server error
+2. **Core Functions**
 
-## Troubleshooting
+   ```python
+   # Pseudocode structure
 
-### Docker Issues
+   def crawl_ton_org():
+       # Start from main pages
+       # Follow internal links
+       # Store raw HTML
 
-1. Environment Variables:
+   def process_content():
+       # Clean HTML
+       # Split into chunks
+       # Extract metadata
 
-   - Ensure .env file exists and is properly configured
-   - Check if DB_HOST is set to 'db' for Docker setup
-   - Verify REDIS_URL points to the Redis container
+   def generate_embeddings():
+       # Create vectors
+       # Store in database
 
-2. Database Connection:
+   def query_handler():
+       # Process user question
+       # Search vectors
+       # Generate response
+   ```
 
-   - Check logs: `docker-compose logs db`
-   - Verify connection: `docker-compose exec db psql -U postgres -d ton_bot -c "\dt"`
+3. **Testing Phase**
+   - Verify data extraction
+   - Test query accuracy
+   - Validate source links
+   - Check update process
 
-3. Redis Connection:
-
-   - Check Redis: `docker-compose exec redis redis-cli ping`
-
-4. Application Logs:
-   - View all logs: `docker-compose logs -f`
-   - App specific: `docker-compose logs app`
-
-## Future Improvements
-
-1. **Content Updates**
-
-   - Implement periodic content refresh
-   - Add diff-based updates
-   - Track content changes
-
-2. **Performance**
-
-   - Implement batch processing
-   - Optimize embedding generation
-   - Add query result caching
-
-3. **Features**
-
-   - Add conversation history
-   - Implement streaming responses
-   - Add source content preview
-
-4. **Monitoring**
-   - Add request logging
-   - Implement error tracking
-   - Add performance metrics
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## License
-
-MIT License
+This simplified implementation provides a focused approach to building a RAG-based AI bot specifically for TON blockchain information from ton.org. It can be expanded later to include additional sources and features.

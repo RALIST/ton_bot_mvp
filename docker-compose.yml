@@ -6,8 +6,10 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - .:/app
     logging:
@@ -18,13 +20,14 @@ services:
 
   worker:
     build: .
-    command: bash -c "mkdir -p /app/log /app/tmp/pids && bundle exec sidekiq -e ${RACK_ENV:-development} -C /app/config/sidekiq.yml -r ./config/environment.rb"
+    command: ["bundle", "exec", "sidekiq", "-e", "${RACK_ENV:-development}", "-C", "/app/config/sidekiq.yml"]
     env_file:
       - .env
     depends_on:
-      - app
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - .:/app
     logging:
@@ -35,14 +38,17 @@ services:
 
   db:
     image: ankane/pgvector:latest
-    environment:
-      - POSTGRES_DB=ton_bot
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -50,6 +56,11 @@ services:
       - "6369:6369"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

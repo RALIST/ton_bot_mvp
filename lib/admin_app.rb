@@ -87,9 +87,12 @@ module TonBot
         total_documents: RawDocument.count,
         processed_documents: RawDocument.where(processed: true).count,
         total_embeddings: Embedding.count,
+        failed_scrapes: FailedScrape.count,
+        retryable_scrapes: FailedScrape.retryable.count,
         sidekiq_stats: Sidekiq::Stats.new
       }
       @recent_documents = RawDocument.order(created_at: :desc).limit(10)
+      @recent_failures = FailedScrape.order(last_retry_at: :desc).limit(5)
       erb :'admin/dashboard'
     end
 
@@ -122,6 +125,33 @@ module TonBot
       erb :'admin/embeddings/show'
     end
 
+    # Failed Scrapes
+    get '/failed-scrapes' do
+      @failed_scrapes = paginate(FailedScrape.order(last_retry_at: :desc))
+      erb :'admin/failed_scrapes/index'
+    end
+
+    post '/failed-scrapes/retry-all' do
+      RetryFailedScrapesJob.perform_async
+      redirect '/admin/failed-scrapes'
+    end
+
+    post '/failed-scrapes/:id/retry' do
+      failed_scrape = FailedScrape.find(params[:id])
+      RetryFailedScrapesJob.perform_async
+      redirect '/admin/failed-scrapes'
+    end
+
+    delete '/failed-scrapes/:id' do
+      FailedScrape.find(params[:id]).destroy
+      redirect '/admin/failed-scrapes'
+    end
+
+    post '/failed-scrapes/clear-all' do
+      FailedScrape.delete_all
+      redirect '/admin/failed-scrapes'
+    end
+
     # Sidekiq Stats
     get '/sidekiq-stats' do
       @stats = Sidekiq::Stats.new
@@ -137,6 +167,8 @@ module TonBot
         total_documents: RawDocument.count,
         processed_documents: RawDocument.where(processed: true).count,
         total_embeddings: Embedding.count,
+        failed_scrapes: FailedScrape.count,
+        retryable_scrapes: FailedScrape.retryable.count,
         sidekiq: {
           processed: Sidekiq::Stats.new.processed,
           failed: Sidekiq::Stats.new.failed,
